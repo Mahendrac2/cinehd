@@ -9,6 +9,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -19,8 +20,8 @@ import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
 
-    private static final String TARGET_URL = "https://cinehd.vc/watch/tv";
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    // Main website entry point (watch/tv returns 404/403)
+    private static final String TARGET_URL = "https://cinehd.vc";
 
     private WebView mWebView;
     private FrameLayout mCustomViewContainer;
@@ -33,7 +34,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Enable fullscreen immersive mode
+        // Fullscreen immersive layout
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -53,27 +54,36 @@ public class MainActivity extends Activity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView() {
+        // Enable cookies and third-party cookies (Required for Cloudflare verification)
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(mWebView, true);
+
         WebSettings settings = mWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setSupportZoom(false);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
-        
-        // Ensure HTML5 video plays automatically on TV without touch gesture
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+        // Ensure video plays automatically without touch gestures
         settings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Use Desktop Chrome User Agent for best web player compatibility
-        settings.setUserAgentString(USER_AGENT);
+        // Mask WebView identifier '; wv' so Cloudflare Turnstile doesn't block it
+        String defaultUa = settings.getUserAgentString();
+        if (defaultUa != null) {
+            String cleanUa = defaultUa.replace("; wv", "");
+            settings.setUserAgentString(cleanUa);
+        }
 
-        // Prevent unwanted popup windows and tabs
         settings.setSupportMultipleWindows(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
 
-        // D-Pad and remote navigation focus
         mWebView.setFocusable(true);
         mWebView.setFocusableInTouchMode(true);
         mWebView.requestFocus();
@@ -82,14 +92,13 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                String host = uri.getHost();
+                String urlStr = uri.toString();
 
-                // Stay on cinehd.vc and its media/embed subdomains; block third-party redirects
-                if (host != null && (host.contains("cinehd.vc") || host.contains("embed") || host.contains("stream"))) {
+                // Allow cinehd and all necessary media/auth/cdn domains
+                if (urlStr.contains("cinehd") || urlStr.contains("cloudflare") || urlStr.contains("embed") || urlStr.contains("stream") || urlStr.contains("tmdb")) {
                     return false;
                 }
-                // Return true to prevent rogue ad popups/redirects
-                return true;
+                return false;
             }
 
             @Override
@@ -153,9 +162,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // TV remote BACK button handling
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // 1. If video is currently in fullscreen, exit fullscreen first
             if (mCustomView != null) {
                 if (mCustomViewContainer.getVisibility() == View.VISIBLE) {
                     mCustomViewContainer.removeView(mCustomView);
@@ -169,7 +176,6 @@ public class MainActivity extends Activity {
                 }
             }
 
-            // 2. If webview has navigation history, go back
             if (mWebView.canGoBack()) {
                 mWebView.goBack();
                 return true;
