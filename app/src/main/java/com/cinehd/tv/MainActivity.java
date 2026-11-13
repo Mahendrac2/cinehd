@@ -157,7 +157,6 @@ public class MainActivity extends Activity {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // 1. If video is currently in fullscreen, exit fullscreen first
             if (mCustomView != null) {
-                mWebView.getWebChromeClient();
                 if (mCustomViewContainer.getVisibility() == View.VISIBLE) {
                     mCustomViewContainer.removeView(mCustomView);
                     mCustomViewContainer.setVisibility(View.GONE);
@@ -204,4 +203,3 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 }
-
