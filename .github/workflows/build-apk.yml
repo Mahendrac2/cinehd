@@ -5,6 +5,9 @@ on:
   push:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,3 +34,11 @@ jobs:
         with:
           name: CineHD-TV-App-Debug
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish Direct Public Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "CineHD TV APK (Direct Download)"
+          body: "Direct APK download without needing GitHub login."
+          files: app/build/outputs/apk/debug/*.apk
